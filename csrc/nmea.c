@@ -9,6 +9,7 @@
 #define DEBUG(...)
 #endif
 
+int vatoi(uint8_t *s, int32_t len, uint32_t base, err_t *err);
 double vatof(uint8_t *s, int32_t len, err_t *err);
 
 C_NATIVE(_nmea_readline){
@@ -134,7 +135,7 @@ int _do_split(uint8_t *line, int len, NmeaSplit *flds, int fldlen) {
 }
 
 int _nmea_set_time(NmeaSplit *tm, NmeaSplit *dt, int *yy, int *mt, int *dd, int* hh, int* mm, int *ss,int*uu){
-    int err;
+    err_t err;
     //parse date: ddmmyy or ddmmyyyy
     *yy = vatoi(dt->start+4,dt->len-3,10,&err);
 
@@ -158,7 +159,7 @@ int _nmea_set_time(NmeaSplit *tm, NmeaSplit *dt, int *yy, int *mt, int *dd, int*
 
 
 int _nmea_set_pos(NmeaSplit *latf,NmeaSplit *latpf,NmeaSplit *lonf, NmeaSplit *lonpf, double *lat, double *lon){
-    int err;
+    err_t err;
 	int i;
 	for (i=latf->len; i>0; --i)
 		if (latf->start[i] == '.') {
@@ -178,13 +179,13 @@ int _nmea_set_pos(NmeaSplit *latf,NmeaSplit *latpf,NmeaSplit *lonf, NmeaSplit *l
 }
 
 int _nmea_set_spd(NmeaSplit *spdf, double *spd){
-    int err;
+    err_t err;
     *spd = vatof(spdf->start,spdf->len,&err)*1.852; //knots to km/h
     return 1;
 }
 
 int _nmea_set_cog(NmeaSplit *cogf, double *cog){
-    int err;
+    err_t err;
     *cog = vatof(cogf->start,cogf->len,&err);
     return 1;
 }
@@ -197,6 +198,10 @@ C_NATIVE(_nmea_parseline){
 
     if (nargs != 4 || parse_py_args("si", 2, args, &buf, &buflen, &len) != 2)
         return ERR_TYPE_EXC;
+    if (PTYPE(args[2]) != PLIST || PTYPE(args[3]) != PLIST)
+        return ERR_TYPE_EXC;
+    PList *tm = (PList *)args[2];
+    PList *fix = (PList *)args[3];
 
     DEBUG("parse buflen=%d len=%d\n",buflen,len);
 
@@ -207,10 +212,9 @@ C_NATIVE(_nmea_parseline){
     uint8_t *cmd = line+3;
     int fldn;
     int has_time=0,gcmd=0,has_fix=0;
-    int yy,mt,dd,hh,mm,ss,uu,nfix,err=0;
+    int yy,mt,dd,hh,mm,ss,uu,nfix;
+    err_t err=0;
     double lat,lon,alt,spd,cog,hdop,vdop,pdop;
-    PList *tm = args[2];
-    PList *fix = args[3];
     NmeaSplit *flds=nmea_flds;
 
     if (ln<8) {

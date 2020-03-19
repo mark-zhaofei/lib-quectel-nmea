@@ -64,7 +64,8 @@ class NMEA_Receiver():
     This class is meant to be used as a base class to provide a uniform interface for GNSS receivers.
 
     Instances of this class are fed with NMEA sentences using the :any:`parse` method and can be
-    queried for UTC time and location data.
+    queried for UTC time and location data. The parser can be disabled to clear acquired data and
+    to prevent further updates until it is enabled again (to avoid stale data).
 
     """
 
@@ -88,6 +89,7 @@ class NMEA_Receiver():
         self._gsa = False
         self._utc = False
         self._lock = threading.Lock()
+        self._enabled = True
 
 
     def print_d(self,*args):
@@ -161,15 +163,28 @@ class NMEA_Receiver():
         self._lock.release()
         return r is not None
 
-
     ##################### Private
+
+    def enable(self,state):
+        """
+.. method:: enable(state)
+    
+        Enable or disable the NMEA parser. Also clear any acquired position fix or UTC data when disabled.
+
+        """
+        self._lock.acquire()
+        self._enable = state
+        if not state:
+            self._time = None
+            self._fix = None
+        self._lock.release()
 
     def parse(self,buffer,count):
         """
 .. method:: parse(buffer,count)
     
-        Parse *count* bytes from the specified *buffer* (bytearray) and updates internal state
-        from valid NMEA sentences found.
+        Parse *count* bytes from the specified *buffer* (bytearray) and updates the internal state
+        from valid NMEA sentences found (when enabled).
 
         """
         r = parseline(buffer,count,self._tm,self._cfix)
@@ -177,7 +192,8 @@ class NMEA_Receiver():
         if r&4:
             # we have time
             self._lock.acquire()
-            self._time = (self._tm[0],self._tm[1],self._tm[2],self._tm[3],self._tm[4],self._tm[5],self._tm[6])
+            if self._enable:
+                self._time = (self._tm[0],self._tm[1],self._tm[2],self._tm[3],self._tm[4],self._tm[5],self._tm[6])
             self._lock.release()
         r=r&3
         if r==1:
@@ -195,18 +211,19 @@ class NMEA_Receiver():
                 self._cfix[7] = None
                 self._cfix[8] = None
             self._lock.acquire()
-            self._fix = (
-                    self._cfix[0],
-                    self._cfix[1],
-                    self._cfix[2],
-                    self._cfix[3],
-                    self._cfix[4],
-                    self._cfix[5],
-                    self._cfix[6],
-                    self._cfix[7],
-                    self._cfix[8],
-                    (self._tm[0],self._tm[1],self._tm[2],self._tm[3],self._tm[4],self._tm[5],self._tm[6])
-                    )
+            if self._enable:
+                self._fix = (
+                        self._cfix[0],
+                        self._cfix[1],
+                        self._cfix[2],
+                        self._cfix[3],
+                        self._cfix[4],
+                        self._cfix[5],
+                        self._cfix[6],
+                        self._cfix[7],
+                        self._cfix[8],
+                        (self._tm[0],self._tm[1],self._tm[2],self._tm[3],self._tm[4],self._tm[5],self._tm[6])
+                        )
             self._rmc = False
             self._gga = False
             self._gsa = False

@@ -3,7 +3,7 @@ description: Support library for Quectel GSM modems
 fullname: lib.quectel.nmea
 info:
     chip_manufacturer: Quectel
-    chip_name: nmea
+    chip_name: NMEA Protocol 
     name: GSM/GPRS Driver
     type: Connectivity
 keywords:
